@@ -45,43 +45,6 @@ public class RagChatService {
         this.gson = new Gson();
     }
 
-    /**
-     * 处理对话请求
-     */
-    public ChatResponse chat(ChatRequest request) {
-        long startTime = System.currentTimeMillis();
-        log.info("开始处理对话请求，知识库: {}, 问题: {}", request.getKnowledgeBaseId(), request.getQuestion());
-
-        try {
-            // Step 1: 检索知识库
-            log.debug("Step 1: 检索知识库...");
-            List<String> retrievedTexts = retrieveKnowledgeBase(
-                    request.getKnowledgeBaseId(),
-                    request.getQuestion()
-            );
-
-            // Step 2: 构造 Prompt
-            log.debug("Step 2: 构造 Prompt...");
-            String prompt = buildPrompt(request.getQuestion(), retrievedTexts);
-
-            // Step 3: 调用通义千问生成回答
-            log.debug("Step 3: 调用通义千问生成回答...");
-            String answer = callQwenAPI(prompt);
-
-            long responseTime = System.currentTimeMillis() - startTime;
-            log.info("对话处理完成，耗时: {}ms", responseTime);
-
-            return ChatResponse.builder()
-                    .answer(answer)
-                    .references(retrievedTexts)
-                    .responseTime(responseTime)
-                    .build();
-
-        } catch (Exception e) {
-            log.error("对话处理失败", e);
-            throw new BusinessException("对话处理失败: " + e.getMessage(), e);
-        }
-    }
 
     /**
      * 检索知识库
@@ -126,8 +89,11 @@ public class RagChatService {
      */
     private String buildPrompt(String question, List<String> references) {
         StringBuilder prompt = new StringBuilder();
-        prompt.append("请根据以下参考信息回答问题。");
-        prompt.append("如果参考信息中有图片链接（Markdown 格式），请在回答中保留这些图片的 Markdown 格式。\n\n");
+        prompt.append("请根据以下参考信息回答问题。\n\n");
+        prompt.append("重要：参考信息中的图片使用了 Markdown 格式 ![](图片链接)，");
+        prompt.append("你必须在回答中完整保留这种 Markdown 图片格式，不要把图片转换成纯文本链接。\n");
+        prompt.append("例如：如果参考信息中有 ![](https://example.com/image.jpg)，");
+        prompt.append("你的回答中也要使用 ![](https://example.com/image.jpg) 或 ![描述](https://example.com/image.jpg)。\n\n");
 
         if (!references.isEmpty()) {
             prompt.append("参考信息：\n");
@@ -137,15 +103,57 @@ public class RagChatService {
         }
 
         prompt.append("问题：").append(question).append("\n\n");
-        prompt.append("请用中文回答，如果参考信息中包含图片，请在回答中展示相关图片。");
+        prompt.append("回答要求：\n");
+        prompt.append("1. 使用中文回答\n");
+        prompt.append("2. 必须保留 Markdown 图片语法格式 ![](url)\n");
+        prompt.append("3. 图片要放在相关描述的附近\n");
 
         return prompt.toString();
     }
 
+
     /**
-     * 调用通义千问 API 生成回答
+     * 流式处理对话请求
+     * 回调接口用于接收流式数据
      */
-    private String callQwenAPI(String prompt) {
+    public interface StreamCallback {
+        void onData(String chunk);
+        void onComplete();
+        void onError(String error);
+    }
+
+    /**
+     * 处理流式对话请求
+     */
+    public void chatStream(ChatRequest request, StreamCallback callback) {
+        log.info("开始处理流式对话请求，知识库: {}, 问题: {}", request.getKnowledgeBaseId(), request.getQuestion());
+
+        try {
+            // Step 1: 检索知识库
+            log.debug("Step 1: 检索知识库...");
+            List<String> retrievedTexts = retrieveKnowledgeBase(
+                    request.getKnowledgeBaseId(),
+                    request.getQuestion()
+            );
+
+            // Step 2: 构造 Prompt
+            log.debug("Step 2: 构造 Prompt...");
+            String prompt = buildPrompt(request.getQuestion(), retrievedTexts);
+
+            // Step 3: 调用通义千问流式 API
+            log.debug("Step 3: 调用通义千问流式生成回答...");
+            callQwenAPIStream(prompt, callback);
+
+        } catch (Exception e) {
+            log.error("流式对话处理失败", e);
+            callback.onError("对话处理失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 调用通义千问流式 API
+     */
+    private void callQwenAPIStream(String prompt, StreamCallback callback) {
         try {
             // 构造请求体
             JsonObject requestBody = new JsonObject();
@@ -170,6 +178,7 @@ public class RagChatService {
 
             JsonObject parameters = new JsonObject();
             parameters.addProperty("result_format", "message");
+            parameters.addProperty("incremental_output", true);  // 启用增量输出
             requestBody.add("parameters", parameters);
 
             // 发送请求
@@ -181,40 +190,93 @@ public class RagChatService {
                     ))
                     .addHeader("Authorization", "Bearer " + bailianService.getProperties().getApiKey())
                     .addHeader("Content-Type", "application/json")
+                    .addHeader("X-DashScope-SSE", "enable")  // 启用 SSE
                     .build();
 
             try (Response response = httpClient.newCall(request).execute()) {
                 if (!response.isSuccessful()) {
                     String errorBody = response.body() != null ? response.body().string() : "Unknown error";
-                    log.error("通义千问 API 错误: {} - {}", response.code(), errorBody);
-                    throw new BusinessException("调用通义千问 API 失败: " + response.code() + ", " + errorBody);
+                    log.error("通义千问流式 API 错误: {} - {}", response.code(), errorBody);
+                    callback.onError("调用通义千问 API 失败: " + response.code() + ", " + errorBody);
+                    return;
                 }
 
-                String responseBody = response.body().string();
-                JsonObject jsonResponse = gson.fromJson(responseBody, JsonObject.class);
+                // 读取流式响应
+                boolean completed = false;
+                try (var source = response.body().source()) {
+                    while (!source.exhausted()) {
+                        String line = source.readUtf8Line();
 
-                // 提取回答
-                if (jsonResponse.has("output") &&
-                    jsonResponse.getAsJsonObject("output").has("choices")) {
+                        if (line == null || line.trim().isEmpty()) {
+                            continue;
+                        }
 
-                    com.google.gson.JsonArray choices = jsonResponse.getAsJsonObject("output")
-                            .getAsJsonArray("choices");
+                        // SSE 格式: data: {...}
+                        if (line.startsWith("data:")) {
+                            String jsonData = line.substring(5).trim();
 
-                    if (choices.size() > 0) {
-                        JsonObject firstChoice = choices.get(0).getAsJsonObject();
-                        if (firstChoice.has("message")) {
-                            return firstChoice.getAsJsonObject("message")
-                                    .get("content").getAsString();
+                            // 检查是否是结束标记
+                            if (jsonData.equals("[DONE]")) {
+                                log.info("收到 [DONE] 标记");
+                                callback.onComplete();
+                                completed = true;
+                                break;
+                            }
+
+                            try {
+                                JsonObject jsonResponse = gson.fromJson(jsonData, JsonObject.class);
+
+                                // 提取增量内容
+                                if (jsonResponse.has("output") &&
+                                    jsonResponse.getAsJsonObject("output").has("choices")) {
+
+                                    com.google.gson.JsonArray choices = jsonResponse.getAsJsonObject("output")
+                                            .getAsJsonArray("choices");
+
+                                    if (choices.size() > 0) {
+                                        JsonObject firstChoice = choices.get(0).getAsJsonObject();
+                                        if (firstChoice.has("message")) {
+                                            String content = firstChoice.getAsJsonObject("message")
+                                                    .get("content").getAsString();
+
+                                            if (content != null && !content.isEmpty()) {
+                                                callback.onData(content);
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // 检查是否完成
+                                if (jsonResponse.has("output") &&
+                                    jsonResponse.getAsJsonObject("output").has("finish_reason")) {
+                                    String finishReason = jsonResponse.getAsJsonObject("output")
+                                            .get("finish_reason").getAsString();
+                                    if ("stop".equals(finishReason)) {
+                                        log.info("收到 finish_reason=stop");
+                                        callback.onComplete();
+                                        completed = true;
+                                        break;
+                                    }
+                                }
+
+                            } catch (Exception e) {
+                                log.warn("解析流式响应失败: {}", jsonData, e);
+                            }
                         }
                     }
                 }
 
-                throw new BusinessException("通义千问返回空结果");
+                // 如果流读取完但没有收到完成信号，手动调用完成
+                if (!completed) {
+                    log.info("流读取结束，但未收到完成信号，手动调用 onComplete");
+                    callback.onComplete();
+                }
+
             }
 
         } catch (Exception e) {
-            log.error("调用通义千问 API 失败", e);
-            throw new BusinessException("调用通义千问 API 失败: " + e.getMessage(), e);
+            log.error("调用通义千问流式 API 失败", e);
+            callback.onError("调用通义千问流式 API 失败: " + e.getMessage());
         }
     }
 }

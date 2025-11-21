@@ -814,7 +814,7 @@
             }
         }
 
-        // 发送消息
+        // 发送消息（流式）
         async function sendMessage() {
             if (!currentKnowledgeBase) {
                 showError('chatError', '请先选择知识库');
@@ -834,31 +834,145 @@
             document.getElementById('sendBtn').disabled = true;
             document.getElementById('chatInput').disabled = true;
 
+            // 创建一个空的助手消息容器
+            const assistantMessageDiv = createStreamingMessage();
+            let streamEnded = false;
+
             try {
                 const response = await fetch('/api/rag-chat/send', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'text/event-stream'
+                    },
                     body: JSON.stringify({
                         knowledgeBaseId: currentKnowledgeBase.id,
                         question: question
                     })
                 });
 
-                const result = await response.json();
-
-                if (result.code === 200 && result.data) {
-                    // 显示 AI 回答
-                    appendMessage('assistant', result.data.answer);
-                } else {
-                    showError('chatError', result.message || '对话失败');
+                if (!response.ok) {
+                    throw new Error('请求失败: ' + response.status);
                 }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+
+                while (!streamEnded) {
+                    const { done, value } = await reader.read();
+
+                    if (done) {
+                        streamEnded = true;
+                        break;
+                    }
+
+                    // 解码数据
+                    buffer += decoder.decode(value, { stream: true });
+
+                    // SSE 事件以双换行符分隔
+                    const events = buffer.split('\n\n');
+                    buffer = events.pop() || ''; // 保留不完整的事件
+
+                    for (const event of events) {
+                        if (!event.trim()) continue;
+
+                        const lines = event.split('\n');
+                        let eventName = '';
+                        let eventData = '';
+
+                        for (const line of lines) {
+                            if (line.startsWith('event:')) {
+                                eventName = line.substring(6).trim();
+                            } else if (line.startsWith('data:')) {
+                                eventData = line.substring(5).trim();
+                            }
+                        }
+
+                        // 处理事件
+                        if (eventName === 'done' || eventData === '[DONE]') {
+                            streamEnded = true;
+                            break;
+                        }
+
+                        if (eventName === 'error') {
+                            showError('chatError', eventData);
+                            streamEnded = true;
+                            break;
+                        }
+
+                        if (eventData && eventData !== '' && eventData !== '[DONE]') {
+                            // 追加内容到消息
+                            appendStreamingContent(assistantMessageDiv, eventData);
+                        }
+                    }
+
+                    if (streamEnded) {
+                        break;
+                    }
+                }
+
             } catch (error) {
                 showError('chatError', '网络错误: ' + error.message);
+                // 移除未完成的消息
+                if (assistantMessageDiv && assistantMessageDiv.parentNode) {
+                    assistantMessageDiv.parentNode.remove();
+                }
             } finally {
-                // 启用输入
+                // 确保启用输入
                 document.getElementById('sendBtn').disabled = false;
                 document.getElementById('chatInput').disabled = false;
             }
+        }
+
+        // 创建流式消息容器
+        function createStreamingMessage() {
+            const messagesDiv = document.getElementById('chatMessages');
+
+            // 移除空状态提示
+            const emptyState = messagesDiv.querySelector('.empty-state');
+            if (emptyState) {
+                emptyState.remove();
+            }
+
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message message-assistant';
+
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+            contentDiv.setAttribute('data-raw-content', ''); // 存储原始内容
+
+            messageDiv.appendChild(contentDiv);
+            messagesDiv.appendChild(messageDiv);
+
+            // 滚动到底部
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+            return contentDiv;
+        }
+
+        // 追加流式内容
+        function appendStreamingContent(contentDiv, chunk) {
+            // 获取当前原始内容
+            let rawContent = contentDiv.getAttribute('data-raw-content') || '';
+            rawContent += chunk;
+            contentDiv.setAttribute('data-raw-content', rawContent);
+
+            // 渲染 Markdown
+            contentDiv.innerHTML = marked.parse(rawContent);
+
+            // 为图片添加点击事件
+            const images = contentDiv.querySelectorAll('img');
+            images.forEach(img => {
+                img.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    showImageModal(this.src);
+                });
+            });
+
+            // 滚动到底部
+            const messagesDiv = document.getElementById('chatMessages');
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
         }
 
         // 添加消息到对话区域
