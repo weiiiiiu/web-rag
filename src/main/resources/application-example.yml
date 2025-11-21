@@ -1,0 +1,30 @@
+# 配置文件示例
+# 复制此文件为 application.yml 并填入真实配置
+
+server:
+  port: 8080
+
+# 阿里云配置
+aliyun:
+  access-key-id: LTAI5t...  # 替换为你的阿里云 AccessKey ID
+  access-key-secret: xxx... # 替换为你的阿里云 AccessKey Secret
+  doc-parser:
+    endpoint: docmind-api.cn-hangzhou.aliyuncs.com
+    region-id: cn-hangzhou
+
+# GitHub 图床配置
+github:
+  token: ghp_xxxxxxxxxxxx  # 替换为你的 GitHub Personal Access Token
+  repo: username/repo      # 替换为你的 GitHub 仓库（格式：用户名/仓库名）
+  branch: main            # 分支名
+  path-prefix: images/     # 图片存储路径前缀
+  cdn: cdn.jsdelivr.net   # CDN 域名
+
+file:
+  tmp-dir: web/tmp
+  result-dir: web/results
+  allowed-types:
+    - pdf
+    - doc
+    - docx
+  max-size: 50

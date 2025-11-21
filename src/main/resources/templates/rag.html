@@ -1,0 +1,954 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAG 知识库对话</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤖</text></svg>">
+    <style>
+        /* 自定义字体定义 */
+        @font-face {
+            font-family: '1666963922';
+            src: url('https://jsd.cdn.zzko.cn/gh/54ayao/ACG@main/static/fonts/1666963922.woff') format('woff');
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: '1666963922', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-image: url('https://ipgeo-bingpic.hf.space');
+            background-attachment: fixed;
+            background-size: cover;
+            background-position: center center;
+            background-repeat: no-repeat;
+            min-height: 100vh;
+            color: #333;
+            overflow-x: hidden;
+            overflow-y: auto;
+        }
+
+        /* 背景遮罩层 */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.2);
+            z-index: 0;
+        }
+
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 30px 20px;
+        }
+
+        /* Header */
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            color: white;
+        }
+
+        header h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+            background-image: linear-gradient(90deg, #07c160, #fb6bea 25%, #3aedff 50%, #fb6bea 75%, #28d079);
+            -webkit-text-fill-color: transparent;
+            -webkit-background-clip: text;
+            background-clip: text;
+            background-size: 400% 100%;
+            animation: gradientMove 10s linear infinite;
+        }
+
+        header p {
+            font-size: 1.1rem;
+            color: white;
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        header .author {
+            margin-top: 10px;
+            font-size: 0.95rem;
+            background-image: linear-gradient(90deg, #07c160, #fb6bea 25%, #3aedff 50%, #fb6bea 75%, #28d079);
+            -webkit-text-fill-color: transparent;
+            -webkit-background-clip: text;
+            background-clip: text;
+            background-size: 400% 100%;
+            animation: gradientMove 10s linear infinite;
+        }
+
+        @keyframes gradientMove {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        /* Main Layout - 两栏布局 */
+        .main-layout {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 20px;
+            align-items: start;
+        }
+
+        /* SVG Filters for Liquid Glass Effect */
+        svg.filters {
+            position: absolute;
+            width: 0;
+            height: 0;
+        }
+
+        /* Glass Card Base */
+        .glass-card {
+            position: relative;
+            overflow: hidden;
+            border-radius: 24px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+        }
+
+        .glass-effect {
+            position: absolute;
+            z-index: 0;
+            inset: 0;
+            backdrop-filter: blur(10px);
+            background: rgba(255, 255, 255, 0.15);
+            filter: url(#glass-distortion);
+        }
+
+        .glass-tint {
+            position: absolute;
+            z-index: 1;
+            inset: 0;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .glass-shine {
+            position: absolute;
+            inset: 0;
+            z-index: 2;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 24px;
+        }
+
+        .glass-content {
+            position: relative;
+            z-index: 3;
+            padding: 25px;
+        }
+
+        /* 左侧：知识库管理面板 */
+        .kb-panel {
+            max-height: calc(100vh - 200px);
+            overflow-y: auto;
+        }
+
+        .kb-panel::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .kb-panel::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+        }
+
+        .kb-panel::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 3px;
+        }
+
+        .panel-title {
+            color: white;
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(74, 222, 128, 0.3);
+            width: 100%;
+            margin-bottom: 15px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(74, 222, 128, 0.4);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
+        }
+
+        .btn-danger:hover {
+            box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4);
+        }
+
+        .kb-list {
+            margin-top: 20px;
+        }
+
+        .kb-item {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+        }
+
+        .kb-item:hover {
+            background: rgba(255, 255, 255, 0.25);
+            transform: translateX(5px);
+        }
+
+        .kb-item.active {
+            border-color: #4ade80;
+            background: rgba(74, 222, 128, 0.2);
+        }
+
+        .kb-item-name {
+            color: white;
+            font-weight: 600;
+            margin-bottom: 5px;
+            font-size: 1rem;
+        }
+
+        .kb-item-meta {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.85rem;
+        }
+
+        .upload-area {
+            border: 2px dashed rgba(255, 255, 255, 0.5);
+            border-radius: 12px;
+            padding: 30px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: rgba(255, 255, 255, 0.1);
+            margin-bottom: 15px;
+        }
+
+        .upload-area:hover {
+            border-color: rgba(255, 255, 255, 0.8);
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .upload-text {
+            color: white;
+            font-size: 0.95rem;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        /* 中间：对话区域 */
+        .chat-panel {
+            min-height: 600px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-messages {
+            flex: 1;
+            min-height: 400px;
+            max-height: 600px;
+            overflow-y: auto;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .chat-messages::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .chat-messages::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+        }
+
+        .chat-messages::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 3px;
+        }
+
+        .message {
+            margin-bottom: 20px;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message-user {
+            text-align: right;
+        }
+
+        .message-content {
+            display: inline-block;
+            max-width: 80%;
+            padding: 15px 20px;
+            border-radius: 16px;
+            word-wrap: break-word;
+        }
+
+        .message-user .message-content {
+            background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+            color: white;
+        }
+
+        .message-assistant .message-content {
+            background: white;
+            color: #333;
+            text-align: left;
+        }
+
+        .message-content img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 12px;
+            margin: 15px 0;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            transition: transform 0.3s ease;
+            cursor: pointer;
+        }
+
+        .message-content img:hover {
+            transform: scale(1.02);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+        }
+
+        /* Markdown 内容样式优化 */
+        .message-content p {
+            margin: 8px 0;
+            line-height: 1.6;
+        }
+
+        .message-content a {
+            color: #4ade80;
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        .message-content a:hover {
+            color: #22c55e;
+            text-decoration: underline;
+        }
+
+        .message-content code {
+            background: rgba(0, 0, 0, 0.05);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .message-content pre {
+            background: rgba(0, 0, 0, 0.05);
+            padding: 12px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+
+        .message-content pre code {
+            background: none;
+            padding: 0;
+        }
+
+        .chat-input-area {
+            display: flex;
+            gap: 10px;
+        }
+
+        .chat-input {
+            flex: 1;
+            padding: 15px 20px;
+            border-radius: 12px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            background: rgba(255, 255, 255, 0.9);
+            font-size: 1rem;
+            outline: none;
+        }
+
+        .chat-input:focus {
+            border-color: #4ade80;
+        }
+
+        .send-btn {
+            padding: 15px 30px;
+            background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .send-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(74, 222, 128, 0.4);
+        }
+
+        .send-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* 右侧：历史记录面板 */
+        /* 响应式设计 */        /* Modal 弹窗 */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+        }
+
+        .modal.active {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+        }
+
+        .modal-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            font-size: 1rem;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #4ade80;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .empty-state {
+            text-align: center;
+            color: rgba(255, 255, 255, 0.6);
+            padding: 40px 20px;
+            font-size: 0.95rem;
+        }
+
+        .loading {
+            text-align: center;
+            color: white;
+            padding: 20px;
+        }
+
+        .error-msg {
+            background: rgba(239, 68, 68, 0.2);
+            border: 1px solid rgba(239, 68, 68, 0.5);
+            color: white;
+            padding: 15px;
+            border-radius: 12px;
+            margin-bottom: 15px;
+            display: none;
+        }
+
+        .error-msg.active {
+            display: block;
+        }
+
+        /* 图片预览模态框 */
+        .image-modal {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        .image-modal.active {
+            display: flex;
+        }
+
+        .image-modal img {
+            max-width: 90%;
+            max-height: 90%;
+            object-fit: contain;
+            border-radius: 8px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+        }
+
+        /* Responsive */
+        @media (max-width: 1200px) {
+            .main-layout {
+                grid-template-columns: 280px 1fr 280px;
+            }
+        }
+
+        @media (max-width: 992px) {
+            .main-layout {
+                grid-template-columns: 1fr;
+            }
+
+            .kb-panel {
+                max-height: 400px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- SVG Filters for Liquid Glass Effect -->
+    <svg class="filters">
+        <filter id="glass-distortion" x="0%" y="0%" width="100%" height="100%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.01 0.01" numOctaves="1" seed="5" result="turbulence"/>
+            <feComponentTransfer in="turbulence" result="mapped">
+                <feFuncR type="gamma" amplitude="1" exponent="10" offset="0.5"/>
+                <feFuncG type="gamma" amplitude="0" exponent="1" offset="0"/>
+                <feFuncB type="gamma" amplitude="0" exponent="1" offset="0.5"/>
+            </feComponentTransfer>
+            <feGaussianBlur in="turbulence" stdDeviation="3" result="softMap"/>
+            <feSpecularLighting in="softMap" surfaceScale="5" specularConstant="1" specularExponent="100" lighting-color="white" result="specLight">
+                <fePointLight x="-200" y="-200" z="300"/>
+            </feSpecularLighting>
+            <feComposite in="specLight" operator="arithmetic" k1="0" k2="1" k3="1" k4="0" result="litImage"/>
+            <feDisplacementMap in="SourceGraphic" in2="softMap" scale="150" xChannelSelector="R" yChannelSelector="G"/>
+        </filter>
+    </svg>
+
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <h1>RAG 知识库对话</h1>
+            <p>阿里云百炼驱动 · 智能问答 · 文档检索</p>
+            <div class="author">Created by ZHONG WEI</div>
+        </header>
+
+        <div class="main-layout">
+            <!-- 左侧：知识库管理 -->
+            <div class="glass-card kb-panel">
+                <div class="glass-effect"></div>
+                <div class="glass-tint"></div>
+                <div class="glass-shine"></div>
+                <div class="glass-content">
+                    <div class="panel-title">知识库管理</div>
+
+                    <div class="error-msg" id="kbError"></div>
+
+                    <button class="btn" onclick="showCreateKbModal()">创建知识库</button>
+                    <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
+                        <div class="upload-text">上传文档到知识库</div>
+                        <input type="file" id="fileInput" class="file-input" accept=".pdf,.doc,.docx,.ppt,.pptx" onchange="uploadDocument()">
+                    </div>
+
+                    <div id="kbList" class="kb-list">
+                        <div class="empty-state">暂无知识库</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 中间：对话区域 -->
+            <div class="glass-card chat-panel">
+                <div class="glass-effect"></div>
+                <div class="glass-tint"></div>
+                <div class="glass-shine"></div>
+                <div class="glass-content" style="height: 100%; display: flex; flex-direction: column;">
+                    <div class="panel-title">对话区域</div>
+
+                    <div class="error-msg" id="chatError"></div>
+
+                    <div id="chatMessages" class="chat-messages">
+                        <div class="empty-state">请先选择或创建知识库，然后开始对话</div>
+                    </div>
+
+                    <div class="chat-input-area">
+                        <input type="text" id="chatInput" class="chat-input" placeholder="输入你的问题..." disabled>
+                        <button id="sendBtn" class="send-btn" onclick="sendMessage()" disabled>发送</button>
+                    </div>
+                </div>
+            </div>
+
+            </div>
+        </div>
+    </div>
+        </div>
+    </div>
+
+    <!-- 创建知识库 Modal -->
+    <div id="createKbModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-title">创建知识库</div>
+            <div class="form-group">
+                <label class="form-label">知识库名称</label>
+                <input type="text" id="kbName" class="form-input" placeholder="请输入知识库名称">
+            </div>
+            <div class="form-group">
+                <label class="form-label">描述（可选）</label>
+                <input type="text" id="kbDescription" class="form-input" placeholder="请输入描述">
+            </div>
+            <div class="modal-buttons">
+                <button class="btn" onclick="createKnowledgeBase()">创建</button>
+                <button class="btn btn-danger" onclick="closeCreateKbModal()">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 图片预览模态框 -->
+    <div id="imageModal" class="image-modal" onclick="closeImageModal()">
+        <img id="modalImage" src="" alt="预览图片">
+    </div>
+
+    <!-- Marked.js for Markdown rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+    <script>
+        // Configure marked
+        marked.setOptions({
+            breaks: true,
+            gfm: true,
+            headerIds: true,
+            mangle: false,
+            sanitize: false
+        });
+
+        let currentKnowledgeBase = null;
+
+        // 页面加载时获取知识库列表
+        window.addEventListener('load', function() {
+            loadKnowledgeBases();
+        });
+
+        // 显示创建知识库弹窗
+        function showCreateKbModal() {
+            document.getElementById('createKbModal').classList.add('active');
+        }
+
+        // 关闭创建知识库弹窗
+        function closeCreateKbModal() {
+            document.getElementById('createKbModal').classList.remove('active');
+            document.getElementById('kbName').value = '';
+            document.getElementById('kbDescription').value = '';
+        }
+
+        // 创建知识库
+        async function createKnowledgeBase() {
+            const name = document.getElementById('kbName').value.trim();
+            if (!name) {
+                showError('kbError', '请输入知识库名称');
+                return;
+            }
+
+            const description = document.getElementById('kbDescription').value.trim();
+
+            try {
+                const formData = new FormData();
+                formData.append('name', name);
+                if (description) {
+                    formData.append('description', description);
+                }
+
+                const response = await fetch('/api/knowledge-base/create', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.code === 200) {
+                    closeCreateKbModal();
+                    loadKnowledgeBases();
+                    alert('知识库创建成功！');
+                } else {
+                    showError('kbError', result.message || '创建失败');
+                }
+            } catch (error) {
+                showError('kbError', '网络错误: ' + error.message);
+            }
+        }
+
+        // 加载知识库列表
+        async function loadKnowledgeBases() {
+            try {
+                const response = await fetch('/api/knowledge-base/list');
+                const result = await response.json();
+
+                if (result.code === 200 && result.data) {
+                    renderKnowledgeBases(result.data);
+                }
+            } catch (error) {
+                showError('kbError', '加载知识库列表失败');
+            }
+        }
+
+        // 渲染知识库列表
+        function renderKnowledgeBases(knowledgeBases) {
+            const kbList = document.getElementById('kbList');
+
+            if (knowledgeBases.length === 0) {
+                kbList.innerHTML = '<div class="empty-state">暂无知识库</div>';
+                return;
+            }
+
+            kbList.innerHTML = knowledgeBases.map(kb => `
+                <div class="kb-item ${currentKnowledgeBase && currentKnowledgeBase.id === kb.id ? 'active' : ''}" onclick="selectKnowledgeBase('${kb.id}', '${escapeHtml(kb.name)}')">
+                    <div class="kb-item-name">${escapeHtml(kb.name)}</div>
+                </div>
+            `).join('');
+        }
+
+        // 选择知识库
+        function selectKnowledgeBase(id, name) {
+            currentKnowledgeBase = { id, name };
+
+            // 更新 UI
+            document.querySelectorAll('.kb-item').forEach(item => item.classList.remove('active'));
+            event.target.closest('.kb-item').classList.add('active');
+
+            // 启用对话输入
+            document.getElementById('chatInput').disabled = false;
+            document.getElementById('sendBtn').disabled = false;
+
+            // 清空对话
+            document.getElementById('chatMessages').innerHTML = '<div class="empty-state">已选择知识库: ' + escapeHtml(name) + '<br>开始对话吧！</div>';
+        }
+
+        // 上传文档
+        async function uploadDocument() {
+            if (!currentKnowledgeBase) {
+                showError('kbError', '请先选择知识库');
+                return;
+            }
+
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                showError('kbError', '正在上传并转换文档，请稍候...');
+
+                const response = await fetch(`/api/knowledge-base/${currentKnowledgeBase.id}/upload`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.code === 200) {
+                    hideError('kbError');
+                    alert('文档上传成功！');
+                    loadKnowledgeBases();
+                } else {
+                    showError('kbError', result.message || '上传失败');
+                }
+            } catch (error) {
+                showError('kbError', '网络错误: ' + error.message);
+            } finally {
+                fileInput.value = '';
+            }
+        }
+
+        // 发送消息
+        async function sendMessage() {
+            if (!currentKnowledgeBase) {
+                showError('chatError', '请先选择知识库');
+                return;
+            }
+
+            const input = document.getElementById('chatInput');
+            const question = input.value.trim();
+
+            if (!question) return;
+
+            // 显示用户消息
+            appendMessage('user', question);
+            input.value = '';
+
+            // 禁用输入
+            document.getElementById('sendBtn').disabled = true;
+            document.getElementById('chatInput').disabled = true;
+
+            try {
+                const response = await fetch('/api/rag-chat/send', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        knowledgeBaseId: currentKnowledgeBase.id,
+                        question: question
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.code === 200 && result.data) {
+                    // 显示 AI 回答
+                    appendMessage('assistant', result.data.answer);
+                } else {
+                    showError('chatError', result.message || '对话失败');
+                }
+            } catch (error) {
+                showError('chatError', '网络错误: ' + error.message);
+            } finally {
+                // 启用输入
+                document.getElementById('sendBtn').disabled = false;
+                document.getElementById('chatInput').disabled = false;
+            }
+        }
+
+        // 添加消息到对话区域
+        function appendMessage(role, content) {
+            const messagesDiv = document.getElementById('chatMessages');
+
+            // 移除空状态提示
+            const emptyState = messagesDiv.querySelector('.empty-state');
+            if (emptyState) {
+                emptyState.remove();
+            }
+
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message message-${role}`;
+
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+
+            if (role === 'assistant') {
+                // 直接渲染 Markdown（内容已包含图片语法）
+                contentDiv.innerHTML = marked.parse(content);
+            } else {
+                contentDiv.textContent = content;
+            }
+
+            messageDiv.appendChild(contentDiv);
+            messagesDiv.appendChild(messageDiv);
+
+            // 为图片添加点击事件（放大预览）
+            if (role === 'assistant') {
+                const images = contentDiv.querySelectorAll('img');
+                images.forEach(img => {
+                    img.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        showImageModal(this.src);
+                    });
+                });
+            }
+
+            // 滚动到底部
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        // 显示错误消息
+        function showError(elementId, message) {
+            const errorDiv = document.getElementById(elementId);
+            errorDiv.textContent = '❌ ' + message;
+            errorDiv.classList.add('active');
+        }
+
+        // 隐藏错误消息
+        function hideError(elementId) {
+            const errorDiv = document.getElementById(elementId);
+            errorDiv.classList.remove('active');
+        }
+
+        // 显示图片预览
+        function showImageModal(imageSrc) {
+            const modal = document.getElementById('imageModal');
+            const modalImg = document.getElementById('modalImage');
+            modalImg.src = imageSrc;
+            modal.classList.add('active');
+        }
+
+        // 关闭图片预览
+        function closeImageModal() {
+            const modal = document.getElementById('imageModal');
+            modal.classList.remove('active');
+        }
+
+        // 格式化时间
+        function formatTime(timestamp) {
+            const date = new Date(timestamp);
+            return date.toLocaleString('zh-CN');
+        }
+
+        // HTML 转义
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // 回车发送消息
+        document.getElementById('chatInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,54 @@
+# Maven
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+
+# Spring Boot
+*.log
+*.gz
+spring-boot-devtools.properties
+
+# IDE
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Compiled class files
+*.class
+
+# Package Files
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# 临时文件和结果文件
+tmp/*
+!tmp/.gitkeep
+results/*
+!results/.gitkeep
+
+# 配置文件（包含敏感信息）
+src/main/resources/application.yml
+src/main/resources/application-*.yml
+!src/main/resources/application-example.yml
+
+# 日志文件
+logs/
+*.log
