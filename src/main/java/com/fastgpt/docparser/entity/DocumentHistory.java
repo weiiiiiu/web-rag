@@ -67,6 +67,14 @@ public class DocumentHistory {
     private String imageStorage;
 
     /**
+     * 解析器类型
+     * aliyun: 阿里云大模型
+     * mineru: MinerU
+     */
+    @Column(nullable = false, length = 20)
+    private String parserType;
+
+    /**
      * 创建时间
      */
     @CreationTimestamp
@@ -91,6 +99,7 @@ public class DocumentHistory {
         private Integer imageCount;
         private Long processingTime;
         private String imageStorage;
+        private String parserType;
         private LocalDateTime createdAt;
 
         public Builder id(Long id) {
@@ -133,6 +142,11 @@ public class DocumentHistory {
             return this;
         }
 
+        public Builder parserType(String parserType) {
+            this.parserType = parserType;
+            return this;
+        }
+
         public Builder createdAt(LocalDateTime createdAt) {
             this.createdAt = createdAt;
             return this;
@@ -148,6 +162,7 @@ public class DocumentHistory {
             history.imageCount = this.imageCount;
             history.processingTime = this.processingTime;
             history.imageStorage = this.imageStorage;
+            history.parserType = this.parserType;
             history.createdAt = this.createdAt;
             return history;
         }
@@ -216,6 +231,14 @@ public class DocumentHistory {
 
     public void setImageStorage(String imageStorage) {
         this.imageStorage = imageStorage;
+    }
+
+    public String getParserType() {
+        return parserType;
+    }
+
+    public void setParserType(String parserType) {
+        this.parserType = parserType;
     }
 
     public LocalDateTime getCreatedAt() {

@@ -44,7 +44,8 @@ public class DocumentHistoryService {
             String markdownContent,
             Integer imageCount,
             Long processingTime,
-            String imageStorage) {
+            String imageStorage,
+            String parserType) {
         
         DocumentHistory history = DocumentHistory.builder()
                 .originalFilename(originalFilename)
@@ -54,11 +55,12 @@ public class DocumentHistoryService {
                 .imageCount(imageCount)
                 .processingTime(processingTime)
                 .imageStorage(imageStorage)
+                .parserType(parserType)
                 .build();
 
         DocumentHistory saved = historyRepository.save(history);
-        log.info("保存解析历史记录: id={}, filename={}, documentId={}", 
-                saved.getId(), originalFilename, documentId);
+        log.info("保存解析历史记录: id={}, filename={}, documentId={}, parserType={}", 
+                saved.getId(), originalFilename, documentId, parserType);
         
         return saved;
     }

@@ -48,6 +48,11 @@ public class DocumentHistoryDto {
     private String imageStorage;
 
     /**
+     * 解析器类型
+     */
+    private String parserType;
+
+    /**
      * 创建时间
      */
     private LocalDateTime createdAt;
@@ -70,6 +75,7 @@ public class DocumentHistoryDto {
         private Integer imageCount;
         private Long processingTime;
         private String imageStorage;
+        private String parserType;
         private LocalDateTime createdAt;
 
         public Builder id(Long id) {
@@ -112,6 +118,11 @@ public class DocumentHistoryDto {
             return this;
         }
 
+        public Builder parserType(String parserType) {
+            this.parserType = parserType;
+            return this;
+        }
+
         public Builder createdAt(LocalDateTime createdAt) {
             this.createdAt = createdAt;
             return this;
@@ -127,6 +138,7 @@ public class DocumentHistoryDto {
             dto.imageCount = this.imageCount;
             dto.processingTime = this.processingTime;
             dto.imageStorage = this.imageStorage;
+            dto.parserType = this.parserType;
             dto.createdAt = this.createdAt;
             return dto;
         }
@@ -197,6 +209,14 @@ public class DocumentHistoryDto {
         this.imageStorage = imageStorage;
     }
 
+    public String getParserType() {
+        return parserType;
+    }
+
+    public void setParserType(String parserType) {
+        this.parserType = parserType;
+    }
+
     public LocalDateTime getCreatedAt() {
         return createdAt;
     }
@@ -217,6 +237,7 @@ public class DocumentHistoryDto {
                 .imageCount(entity.getImageCount())
                 .processingTime(entity.getProcessingTime())
                 .imageStorage(entity.getImageStorage())
+                .parserType(entity.getParserType())
                 .createdAt(entity.getCreatedAt())
                 .build();
     }
@@ -234,6 +255,7 @@ public class DocumentHistoryDto {
                 .imageCount(entity.getImageCount())
                 .processingTime(entity.getProcessingTime())
                 .imageStorage(entity.getImageStorage())
+                .parserType(entity.getParserType())
                 .createdAt(entity.getCreatedAt())
                 .build();
     }

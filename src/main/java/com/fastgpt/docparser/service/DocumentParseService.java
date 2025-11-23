@@ -175,7 +175,8 @@ public class DocumentParseService {
                         markdownContent,
                         imageCount,
                         processingTime,
-                        documentProperties.getImageStorage()
+                        documentProperties.getImageStorage(),
+                        documentProperties.getParserType()
                 );
                 log.info("解析历史已保存到数据库");
             } catch (Exception e) {

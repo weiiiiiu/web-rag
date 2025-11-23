@@ -2,9 +2,11 @@ package com.fastgpt.docparser.controller;
 
 import com.fastgpt.docparser.dto.ApiResponse;
 import com.fastgpt.docparser.dto.DocumentHistoryDto;
+import com.fastgpt.docparser.dto.DocumentConfigDto;
 import com.fastgpt.docparser.dto.ParseResult;
 import com.fastgpt.docparser.service.DocumentParseService;
 import com.fastgpt.docparser.service.DocumentHistoryService;
+import com.fastgpt.docparser.config.DocumentProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.*;
@@ -23,12 +25,15 @@ public class DocumentController {
 
     private final DocumentParseService documentParseService;
     private final DocumentHistoryService documentHistoryService;
+    private final DocumentProperties documentProperties;
 
     public DocumentController(
             DocumentParseService documentParseService,
-            DocumentHistoryService documentHistoryService) {
+            DocumentHistoryService documentHistoryService,
+            DocumentProperties documentProperties) {
         this.documentParseService = documentParseService;
         this.documentHistoryService = documentHistoryService;
+        this.documentProperties = documentProperties;
     }
 
     /**
@@ -101,5 +106,59 @@ public class DocumentController {
     @GetMapping("/health")
     public ApiResponse<String> health() {
         return ApiResponse.success("服务运行正常");
+    }
+
+    /**
+     * 获取当前配置
+     */
+    @GetMapping("/config")
+    public ApiResponse<DocumentConfigDto> getConfig() {
+        log.info("获取当前文档解析配置");
+        DocumentConfigDto config = new DocumentConfigDto(
+                documentProperties.getParserType(),
+                documentProperties.getImageStorage()
+        );
+        return ApiResponse.success("获取配置成功", config);
+    }
+
+    /**
+     * 更新配置
+     */
+    @PutMapping("/config")
+    public ApiResponse<DocumentConfigDto> updateConfig(@RequestBody DocumentConfigDto configDto) {
+        log.info("更新文档解析配置: parserType={}, imageStorage={}", 
+                configDto.getParserType(), configDto.getImageStorage());
+        
+        try {
+            // 验证配置值
+            if (configDto.getParserType() != null) {
+                String parserType = configDto.getParserType().toLowerCase();
+                if (!parserType.equals("aliyun") && !parserType.equals("mineru")) {
+                    return ApiResponse.error("解析器类型只能是 aliyun 或 mineru");
+                }
+                documentProperties.setParserType(parserType);
+            }
+            
+            if (configDto.getImageStorage() != null) {
+                String imageStorage = configDto.getImageStorage().toLowerCase();
+                if (!imageStorage.equals("oss") && !imageStorage.equals("github")) {
+                    return ApiResponse.error("存储方式只能是 oss 或 github");
+                }
+                documentProperties.setImageStorage(imageStorage);
+            }
+            
+            DocumentConfigDto updatedConfig = new DocumentConfigDto(
+                    documentProperties.getParserType(),
+                    documentProperties.getImageStorage()
+            );
+            
+            log.info("配置更新成功: parserType={}, imageStorage={}", 
+                    updatedConfig.getParserType(), updatedConfig.getImageStorage());
+            
+            return ApiResponse.success("配置更新成功", updatedConfig);
+        } catch (Exception e) {
+            log.error("更新配置失败", e);
+            return ApiResponse.error("更新配置失败: " + e.getMessage());
+        }
     }
 }

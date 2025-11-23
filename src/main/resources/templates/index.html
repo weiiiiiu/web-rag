@@ -547,6 +547,66 @@
       .error-msg.active {
         display: block;
       }
+
+      /* Config Section */
+      .config-section {
+        margin-bottom: 20px;
+      }
+
+      .config-header {
+        color: white;
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin-bottom: 15px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .config-group {
+        margin-bottom: 15px;
+      }
+
+      .config-label {
+        color: rgba(255, 255, 255, 0.9);
+        font-size: 0.9rem;
+        margin-bottom: 8px;
+        display: block;
+      }
+
+      .config-options {
+        display: flex;
+        gap: 10px;
+      }
+
+      .config-option {
+        flex: 1;
+        background: rgba(255, 255, 255, 0.15);
+        border: 2px solid rgba(255, 255, 255, 0.2);
+        color: white;
+        padding: 10px 15px;
+        border-radius: 10px;
+        font-size: 0.9rem;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        text-align: center;
+      }
+
+      .config-option:hover {
+        background: rgba(255, 255, 255, 0.25);
+      }
+
+      .config-option.active {
+        background: rgba(74, 222, 128, 0.3);
+        border-color: rgba(74, 222, 128, 0.6);
+        font-weight: 600;
+      }
+
+      .config-hint {
+        color: rgba(255, 255, 255, 0.6);
+        font-size: 0.75rem;
+        margin-top: 5px;
+      }
     </style>
   </head>
   <body>
@@ -715,7 +775,60 @@
 
         <!-- Right: History Panel -->
         <div>
-          <div class="glass-card history-panel">
+          <!-- Config Section -->
+          <div class="glass-card config-section">
+            <div class="glass-effect"></div>
+            <div class="glass-tint"></div>
+            <div class="glass-shine"></div>
+            <div class="glass-content">
+              <div class="config-header">⚙️ 配置选项</div>
+
+              <!-- 解析器选择 -->
+              <div class="config-group">
+                <label class="config-label">解析器类型</label>
+                <div class="config-options">
+                  <div
+                    class="config-option"
+                    data-parser="mineru"
+                    onclick="selectParser('mineru')"
+                  >
+                    MinerU
+                  </div>
+                  <div
+                    class="config-option"
+                    data-parser="aliyun"
+                    onclick="selectParser('aliyun')"
+                  >
+                    阿里云
+                  </div>
+                </div>
+              
+
+              <!-- 存储方式选择 -->
+              <div class="config-group">
+                <label class="config-label">图片存储方式</label>
+                <div class="config-options">
+                  <div
+                    class="config-option"
+                    data-storage="github"
+                    onclick="selectStorage('github')"
+                  >
+                    GitHub
+                  </div>
+                  <div
+                    class="config-option"
+                    data-storage="oss"
+                    onclick="selectStorage('oss')"
+                  >
+                    阿里云OSS
+                  </div>
+                </div>
+   
+            </div>
+          </div>
+
+          <!-- History Panel -->
+          <div class="glass-card history-panel" style="margin-top: 20px">
             <div class="glass-effect"></div>
             <div class="glass-tint"></div>
             <div class="glass-shine"></div>
@@ -746,9 +859,14 @@
       let currentMarkdown = "";
       let currentFilename = "";
       let currentHistoryId = null;
+      let currentConfig = {
+        parserType: "mineru",
+        imageStorage: "github",
+      };
 
-      // 页面加载时获取历史记录
+      // 页面加载时获取历史记录和配置
       window.addEventListener("load", function () {
+        loadConfig();
         loadHistoryList();
       });
 
@@ -789,9 +907,16 @@
                       history.originalFilename
                     )}</div>
                     <div class="history-meta">
-                        <div class="history-time">${formatTime(
-                          history.createdAt
-                        )}</div>
+                        <div style="flex: 1;">
+                            <div class="history-time">${formatTime(
+                              history.createdAt
+                            )}</div>
+                            <div style="font-size: 0.75rem; color: rgba(255, 255, 255, 0.7); margin-top: 3px;">
+                                ${getParserName(
+                                  history.parserType
+                                )} | ${getStorageName(history.imageStorage)}
+                            </div>
+                        </div>
                         <div class="history-actions" onclick="event.stopPropagation()">
                             <button class="history-action-btn delete" onclick="deleteHistory(${
                               history.id
@@ -802,6 +927,46 @@
             `
           )
           .join("");
+      }
+
+      // 获取解析器图标
+      function getParserIcon(parserType) {
+        if (parserType === "mineru") {
+          return "🔧";
+        } else if (parserType === "aliyun") {
+          return "☁️";
+        }
+        return "📄";
+      }
+
+      // 获取解析器名称
+      function getParserName(parserType) {
+        if (parserType === "mineru") {
+          return "MinerU";
+        } else if (parserType === "aliyun") {
+          return "阿里云";
+        }
+        return "未知";
+      }
+
+      // 获取存储方式图标
+      function getStorageIcon(imageStorage) {
+        if (imageStorage === "github") {
+          return "🐙";
+        } else if (imageStorage === "oss") {
+          return "💾";
+        }
+        return "📦";
+      }
+
+      // 获取存储方式名称
+      function getStorageName(imageStorage) {
+        if (imageStorage === "github") {
+          return "GitHub";
+        } else if (imageStorage === "oss") {
+          return "OSS";
+        }
+        return "未知";
       }
 
       // 查看历史记录详情
@@ -1125,6 +1290,172 @@
         a.click();
         URL.revokeObjectURL(url);
       }
+
+      // ==================== 配置管理 ====================
+
+      // 加载当前配置
+      async function loadConfig() {
+        try {
+          const response = await fetch("/api/document/config");
+          const result = await response.json();
+
+          if (result.code === 200 && result.data) {
+            currentConfig = result.data;
+            updateConfigUI();
+          }
+        } catch (error) {
+          console.error("加载配置失败:", error);
+        }
+      }
+
+      // 更新配置UI显示
+      function updateConfigUI() {
+        // 更新解析器选择
+        document.querySelectorAll("[data-parser]").forEach((option) => {
+          if (option.dataset.parser === currentConfig.parserType) {
+            option.classList.add("active");
+          } else {
+            option.classList.remove("active");
+          }
+        });
+
+        // 更新存储方式选择
+        document.querySelectorAll("[data-storage]").forEach((option) => {
+          if (option.dataset.storage === currentConfig.imageStorage) {
+            option.classList.add("active");
+          } else {
+            option.classList.remove("active");
+          }
+        });
+      }
+
+      // 选择解析器
+      async function selectParser(parserType) {
+        if (currentConfig.parserType === parserType) {
+          return; // 已经是当前选择
+        }
+
+        try {
+          const response = await fetch("/api/document/config", {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              parserType: parserType,
+              imageStorage: currentConfig.imageStorage,
+            }),
+          });
+
+          const result = await response.json();
+
+          if (result.code === 200) {
+            currentConfig = result.data;
+            updateConfigUI();
+
+            // 显示成功提示
+            const parserName = parserType === "mineru" ? "MinerU" : "阿里云";
+            showSuccessToast(`✅ 已切换到 ${parserName} 解析器`);
+          } else {
+            alert("❌ 切换失败: " + result.message);
+          }
+        } catch (error) {
+          alert("❌ 切换失败: " + error.message);
+        }
+      }
+
+      // 选择存储方式
+      async function selectStorage(imageStorage) {
+        if (currentConfig.imageStorage === imageStorage) {
+          return; // 已经是当前选择
+        }
+
+        try {
+          const response = await fetch("/api/document/config", {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              parserType: currentConfig.parserType,
+              imageStorage: imageStorage,
+            }),
+          });
+
+          const result = await response.json();
+
+          if (result.code === 200) {
+            currentConfig = result.data;
+            updateConfigUI();
+
+            // 显示成功提示
+            const storageName =
+              imageStorage === "github" ? "GitHub" : "阿里云OSS";
+            showSuccessToast(`✅ 已切换到 ${storageName} 存储`);
+          } else {
+            alert("❌ 切换失败: " + result.message);
+          }
+        } catch (error) {
+          alert("❌ 切换失败: " + error.message);
+        }
+      }
+
+      // 显示成功提示
+      function showSuccessToast(message) {
+        // 创建提示元素
+        const toast = document.createElement("div");
+        toast.textContent = message;
+        toast.style.cssText = `
+          position: fixed;
+          top: 20px;
+          right: 20px;
+          background: rgba(74, 222, 128, 0.9);
+          color: white;
+          padding: 15px 25px;
+          border-radius: 12px;
+          font-size: 0.95rem;
+          font-weight: 600;
+          box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+          z-index: 10000;
+          animation: slideIn 0.3s ease;
+        `;
+
+        document.body.appendChild(toast);
+
+        // 3秒后移除
+        setTimeout(() => {
+          toast.style.animation = "slideOut 0.3s ease";
+          setTimeout(() => {
+            document.body.removeChild(toast);
+          }, 300);
+        }, 3000);
+      }
+
+      // 添加动画样式
+      const style = document.createElement("style");
+      style.textContent = `
+        @keyframes slideIn {
+          from {
+            transform: translateX(400px);
+            opacity: 0;
+          }
+          to {
+            transform: translateX(0);
+            opacity: 1;
+          }
+        }
+        @keyframes slideOut {
+          from {
+            transform: translateX(0);
+            opacity: 1;
+          }
+          to {
+            transform: translateX(400px);
+            opacity: 0;
+          }
+        }
+      `;
+      document.head.appendChild(style);
     </script>
   </body>
 </html>
