@@ -164,4 +164,45 @@ public class AliyunOssImageService {
             log.info("阿里云 OSS 客户端已关闭");
         }
     }
+
+    /**
+     * 删除整个文档文件夹
+     * 删除路径: {知识库ID}/{文档ID}/ 下的所有文件
+     * 
+     * @param knowledgeBaseId 知识库ID
+     * @param documentId 文档ID
+     */
+    public void deleteDocumentFolder(String knowledgeBaseId, String documentId) {
+        String folderPrefix = String.format("%s/%s/", knowledgeBaseId, documentId);
+        
+        try {
+            // 列出该文件夹下的所有文件
+            var listObjectsRequest = new com.aliyun.oss.model.ListObjectsRequest(ossProperties.getBucketName())
+                    .withPrefix(folderPrefix);
+            
+            var objectListing = ossClient.listObjects(listObjectsRequest);
+            var objectSummaries = objectListing.getObjectSummaries();
+            
+            if (objectSummaries.isEmpty()) {
+                log.info("OSS文件夹为空，无需删除: {}", folderPrefix);
+                return;
+            }
+            
+            // 批量删除文件
+            List<String> keys = objectSummaries.stream()
+                    .map(com.aliyun.oss.model.OSSObjectSummary::getKey)
+                    .collect(Collectors.toList());
+            
+            DeleteObjectsRequest deleteRequest = new DeleteObjectsRequest(ossProperties.getBucketName())
+                    .withKeys(keys);
+            
+            DeleteObjectsResult deleteResult = ossClient.deleteObjects(deleteRequest);
+            
+            log.info("成功删除OSS文件夹: {}, 删除文件数: {}", folderPrefix, deleteResult.getDeletedObjects().size());
+            
+        } catch (Exception e) {
+            log.error("删除OSS文件夹失败: {}", folderPrefix, e);
+            throw new BusinessException("删除OSS文件夹失败: " + e.getMessage(), e);
+        }
+    }
 }

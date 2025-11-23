@@ -68,6 +68,13 @@ public class ApiResponse<T> {
     }
 
     /**
+     * 成功响应（无数据）
+     */
+    public static <T> ApiResponse<T> success(String message) {
+        return new ApiResponse<>(200, message, null);
+    }
+
+    /**
      * 失败响应
      */
     public static <T> ApiResponse<T> error(String message) {

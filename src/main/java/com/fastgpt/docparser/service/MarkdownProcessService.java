@@ -149,7 +149,8 @@ public class MarkdownProcessService {
             return aliyunOssImageService.uploadImageBytes(imageBytes, knowledgeBaseId, documentId, unifiedFileName);
         } else {
             // 上传到 GitHub
-            return gitHubImageService.uploadImage(imagePath, unifiedFileName);
+            byte[] imageBytes = Files.readAllBytes(imagePath);
+            return gitHubImageService.uploadImageBytes(imageBytes, knowledgeBaseId, documentId, unifiedFileName);
         }
     }
 

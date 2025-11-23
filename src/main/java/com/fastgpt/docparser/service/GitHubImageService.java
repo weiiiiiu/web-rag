@@ -44,6 +44,83 @@ public class GitHubImageService {
      * 上传图片字节数组到 GitHub
      *
      * @param imageBytes 图片字节数据
+     * @param knowledgeBaseId 知识库ID
+     * @param documentId 文档ID
+     * @param fileName 文件名
+     * @return CDN 图片链接
+     */
+    public String uploadImageBytes(byte[] imageBytes, String knowledgeBaseId, String documentId, String fileName) throws IOException {
+        String base64Content = Base64.getEncoder().encodeToString(imageBytes);
+
+        // 使用内容哈希生成文件名，相同内容的图片会得到相同的文件名，自动去重
+        String hashFileName = generateHashFileName(imageBytes, fileName);
+        
+        // 新的路径结构: {pathPrefix}{知识库ID}/{文档ID}/{图片名}
+        String filePath = String.format("%s%s/%s/%s", 
+                gitHubProperties.getPathPrefix(), 
+                sanitizePath(knowledgeBaseId), 
+                sanitizePath(documentId), 
+                hashFileName);
+
+        // 构建 GitHub API URL
+        String apiUrl = String.format("%s/repos/%s/contents/%s",
+                gitHubProperties.getApiBaseUrl(),
+                gitHubProperties.getRepo(),
+                filePath);
+
+        // 构建请求体
+        JsonObject requestBody = new JsonObject();
+        requestBody.addProperty("message", "Upload image: " + hashFileName);
+        requestBody.addProperty("content", base64Content);
+        requestBody.addProperty("branch", gitHubProperties.getBranch());
+
+        RequestBody body = RequestBody.create(
+                gson.toJson(requestBody),
+                MediaType.parse("application/json; charset=utf-8")
+        );
+
+        // 构建请求
+        Request request = new Request.Builder()
+                .url(apiUrl)
+                .addHeader("Authorization", "token " + gitHubProperties.getToken())
+                .addHeader("Accept", "application/vnd.github.v3+json")
+                .put(body)
+                .build();
+
+        // 发送请求
+        try (Response response = httpClient.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                String errorBody = response.body() != null ? response.body().string() : "Unknown error";
+                log.error("GitHub API 上传失败: {} - {}", response.code(), errorBody);
+                throw new BusinessException("图片上传到 GitHub 失败: " + response.code());
+            }
+
+            // 返回 CDN 链接
+            String relativePath = String.format("%s/%s/%s", 
+                    sanitizePath(knowledgeBaseId), 
+                    sanitizePath(documentId), 
+                    hashFileName);
+            String cdnUrl = gitHubProperties.getCdnBaseUrl() + relativePath;
+            log.info("图片上传成功: {} -> {}", fileName, cdnUrl);
+            return cdnUrl;
+        }
+    }
+
+    /**
+     * 清理路径，去除特殊字符
+     */
+    private String sanitizePath(String path) {
+        if (path == null) {
+            return "default";
+        }
+        // 只保留字母、数字、中文、下划线、连字符
+        return path.replaceAll("[^a-zA-Z0-9\\u4e00-\\u9fa5_-]", "_");
+    }
+
+    /**
+     * 上传图片字节数组到 GitHub（旧方法，保留兼容性）
+     *
+     * @param imageBytes 图片字节数据
      * @param fileName 文件名
      * @return CDN 图片链接
      */
@@ -256,5 +333,30 @@ public class GitHubImageService {
 
         // 只保留字母、数字、下划线和连字符
         return fileName.replaceAll("[^a-zA-Z0-9_-]", "_");
+    }
+
+    /**
+     * 删除整个文档文件夹
+     * 删除路径: {pathPrefix}{知识库ID}/{文档ID}/ 下的所有文件
+     * 
+     * 注意：GitHub API 不支持直接删除文件夹，需要逐个删除文件
+     * 为了简化实现，这里只记录日志，实际删除需要列出所有文件后逐个删除
+     * 
+     * @param knowledgeBaseId 知识库ID
+     * @param documentId 文档ID
+     */
+    public void deleteDocumentFolder(String knowledgeBaseId, String documentId) {
+        String folderPath = String.format("%s%s/%s", 
+                gitHubProperties.getPathPrefix(), 
+                sanitizePath(knowledgeBaseId), 
+                sanitizePath(documentId));
+        
+        log.warn("GitHub 不支持直接删除文件夹，请手动删除: {}", folderPath);
+        log.warn("或者实现列举文件夹内容后逐个删除的逻辑");
+        
+        // TODO: 实现列举文件夹内容并逐个删除的逻辑
+        // 1. 使用 GitHub API 列出该路径下的所有文件
+        // 2. 逐个调用 DELETE API 删除文件
+        // 由于 GitHub API 限制较多，这里暂时只记录日志
     }
 }

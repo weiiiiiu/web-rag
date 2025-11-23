@@ -30,6 +30,7 @@ public class DocumentParseService {
     private final AliyunDocParserService aliyunDocParserService;
     private final MarkdownProcessService markdownProcessService;
     private final FileProperties fileProperties;
+    private final DocumentHistoryService documentHistoryService;
 
     /**
      * 获取知识库 ID
@@ -57,18 +58,21 @@ public class DocumentParseService {
      * @param aliyunDocParserService 阿里云解析服务
      * @param markdownProcessService Markdown 处理服务
      * @param fileProperties 文件配置
+     * @param documentHistoryService 文档历史服务
      */
     public DocumentParseService(
             DocumentProperties documentProperties,
             MinerUDocParserService minerUDocParserService,
             AliyunDocParserService aliyunDocParserService,
             MarkdownProcessService markdownProcessService,
-            FileProperties fileProperties) {
+            FileProperties fileProperties,
+            DocumentHistoryService documentHistoryService) {
         this.documentProperties = documentProperties;
         this.minerUDocParserService = minerUDocParserService;
         this.aliyunDocParserService = aliyunDocParserService;
         this.markdownProcessService = markdownProcessService;
         this.fileProperties = fileProperties;
+        this.documentHistoryService = documentHistoryService;
 
         // 确保目录存在
         initDirectories();
@@ -150,6 +154,8 @@ public class DocumentParseService {
 
             // 5. 构建返回结果
             long processingTime = System.currentTimeMillis() - startTime;
+            String knowledgeBaseId = getKnowledgeBaseId();
+            String documentId = sanitizeDocumentId(file.getOriginalFilename());
 
             ParseResult result = ParseResult.builder()
                     .originalFilename(file.getOriginalFilename())
@@ -159,6 +165,22 @@ public class DocumentParseService {
                     .resultFilePath(null)  // 不再保存文件
                     .processingTime(processingTime)
                     .build();
+
+            // 6. 保存历史记录到数据库
+            try {
+                documentHistoryService.saveHistory(
+                        file.getOriginalFilename(),
+                        documentId,
+                        knowledgeBaseId,
+                        markdownContent,
+                        imageCount,
+                        processingTime,
+                        documentProperties.getImageStorage()
+                );
+                log.info("解析历史已保存到数据库");
+            } catch (Exception e) {
+                log.error("保存解析历史失败，但不影响主流程", e);
+            }
 
             return result;
 
