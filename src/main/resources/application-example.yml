@@ -1,0 +1,45 @@
+# 配置文件示例
+# 复制此文件为 application.yml 并填入真实配置
+
+server:
+  port: 8080
+
+# 阿里云配置
+aliyun:
+  access-key-id: LTAI5t... # 替换为你的阿里云 AccessKey ID
+  access-key-secret: xxx... # 替换为你的阿里云 AccessKey Secret
+
+  # OSS 图床配置
+  oss:
+    enabled: true
+    endpoint: oss-cn-beijing.aliyuncs.com
+    bucket-name: your-bucket-name
+    public-url: https://your-bucket-name.oss-cn-beijing.aliyuncs.com
+
+  # 文档解析配置
+  docparser:
+    endpoint: docmind-api.cn-hangzhou.aliyuncs.com
+    region-id: cn-hangzhou
+
+# GitHub 图床配置
+github:
+  token: ghp_xxxxxxxxxxxx # 替换为你的 GitHub Personal Access Token
+  repo: username/repo # 替换为你的 GitHub 仓库（格式：用户名/仓库名）
+  branch: main # 分支名
+  path-prefix: images/ # 图片存储路径前缀
+  cdn: cdn.jsdelivr.net # CDN 域名
+
+# 文档解析配置
+document:
+  # 解析器类型：aliyun 或 mineru
+  parser-type: aliyun
+  # 图片存储策略：oss（阿里云 OSS）或 github（GitHub CDN）
+  image-storage: oss
+
+file:
+  tmp-dir: .tmp
+  allowed-types:
+    - pdf
+    - doc
+    - docx
+  max-size: 50

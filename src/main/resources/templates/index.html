@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文档解析服务 </title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📄</text></svg>">
+    <style>
+        /* 自定义字体定义 */
+        @font-face {
+            font-family: '1666963922';
+            src: url('https://jsd.cdn.zzko.cn/gh/54ayao/ACG@main/static/fonts/1666963922.woff') format('woff');
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: '1666963922', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-image: url('https://ipgeo-bingpic.hf.space');
+            background-attachment: fixed;
+            background-size: cover;
+            background-position: center center;
+            background-repeat: no-repeat;
+            min-height: 100vh;
+            color: #333;
+            overflow-x: hidden;
+        }
+
+        /* 背景遮罩层 */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.2);
+            z-index: 0;
+        }
+
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        /* Header */
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+            color: white;
+        }
+
+        header h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+            background-image: linear-gradient(90deg, #07c160, #fb6bea 25%, #3aedff 50%, #fb6bea 75%, #28d079);
+            -webkit-text-fill-color: transparent;
+            -webkit-background-clip: text;
+            background-clip: text;
+            background-size: 400% 100%;
+            animation: gradientMove 10s linear infinite;
+        }
+
+        header p {
+            font-size: 1.1rem;
+            color: white;
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        header .author {
+            margin-top: 10px;
+            font-size: 0.95rem;
+            background-image: linear-gradient(90deg, #07c160, #fb6bea 25%, #3aedff 50%, #fb6bea 75%, #28d079);
+            -webkit-text-fill-color: transparent;
+            -webkit-background-clip: text;
+            background-clip: text;
+            background-size: 400% 100%;
+            animation: gradientMove 10s linear infinite;
+        }
+
+        @keyframes gradientMove {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        /* Main Layout */
+        .main-layout {
+            display: block;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        /* Liquid Glass Effect - SVG Filter */
+        svg.filters {
+            position: absolute;
+            width: 0;
+            height: 0;
+        }
+
+        /* Glass Card Base */
+        .glass-card {
+            position: relative;
+            overflow: hidden;
+            border-radius: 24px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+        }
+
+        .glass-effect {
+            position: absolute;
+            z-index: 0;
+            inset: 0;
+            backdrop-filter: blur(10px);
+            background: rgba(255, 255, 255, 0.15);
+            filter: url(#glass-distortion);
+        }
+
+        .glass-tint {
+            position: absolute;
+            z-index: 1;
+            inset: 0;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .glass-shine {
+            position: absolute;
+            inset: 0;
+            z-index: 2;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 24px;
+        }
+
+        .glass-content {
+            position: relative;
+            z-index: 3;
+            padding: 30px;
+        }
+
+        /* Upload Section */
+        .upload-section {
+            background: transparent;
+        }
+
+        .upload-area {
+            border: 3px dashed rgba(255, 255, 255, 0.5);
+            border-radius: 20px;
+            padding: 50px 30px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: rgba(255, 255, 255, 0.1);
+            margin-bottom: 20px;
+        }
+
+        .upload-area:hover {
+            border-color: rgba(255, 255, 255, 0.8);
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .upload-area.drag-over {
+            border-color: #4ade80;
+            background: rgba(74, 222, 128, 0.2);
+        }
+
+        .upload-icon {
+            font-size: 3rem;
+            margin-bottom: 15px;
+        }
+
+        .upload-text {
+            color: white;
+            font-size: 1.1rem;
+            margin-bottom: 10px;
+        }
+
+        .upload-hint {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.9rem;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .upload-btn {
+            background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(74, 222, 128, 0.3);
+        }
+
+        .upload-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(74, 222, 128, 0.4);
+        }
+
+        .upload-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Progress */
+        .progress-section {
+            margin-top: 20px;
+            display: none;
+        }
+
+        .progress-section.active {
+            display: block;
+        }
+
+        .progress-bar {
+            height: 8px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4ade80, #22c55e);
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+
+        .progress-text {
+            color: white;
+            margin-top: 10px;
+            font-size: 0.9rem;
+        }
+
+
+        /* Result Section */
+        .result-section {
+            display: none;
+            animation: fadeIn 0.5s ease;
+        }
+
+        .result-section.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .result-title {
+            color: white;
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .result-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .action-btn {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .action-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .tab {
+            background: rgba(255, 255, 255, 0.15);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 10px;
+            font-size: 0.95rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .tab.active {
+            background: rgba(255, 255, 255, 0.3);
+            font-weight: 600;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .markdown-preview {
+            background: white;
+            padding: 30px;
+            border-radius: 16px;
+            min-height: 400px;
+            max-height: 700px;
+            overflow-y: auto;
+            line-height: 1.8;
+        }
+
+        .markdown-preview h1, .markdown-preview h2, .markdown-preview h3 {
+            margin-top: 24px;
+            margin-bottom: 16px;
+            font-weight: 600;
+        }
+
+        .markdown-preview img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            margin: 16px 0;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .markdown-source {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+            border-radius: 12px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.9rem;
+            min-height: 400px;
+            max-height: 700px;
+            overflow: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        /* Stats */
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.15);
+            padding: 15px;
+            border-radius: 12px;
+            text-align: center;
+        }
+
+        .stat-value {
+            color: white;
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 0.85rem;
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .main-layout {
+                grid-template-columns: 1fr;
+            }
+
+            .history-panel {
+                max-height: 400px;
+            }
+        }
+
+        /* Error */
+        .error-msg {
+            background: rgba(239, 68, 68, 0.2);
+            border: 1px solid rgba(239, 68, 68, 0.5);
+            color: white;
+            padding: 15px;
+            border-radius: 12px;
+            margin-top: 15px;
+            display: none;
+        }
+
+        .error-msg.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <!-- SVG Filters for Liquid Glass Effect -->
+    <svg class="filters">
+        <filter id="glass-distortion" x="0%" y="0%" width="100%" height="100%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.01 0.01" numOctaves="1" seed="5" result="turbulence"/>
+            <feComponentTransfer in="turbulence" result="mapped">
+                <feFuncR type="gamma" amplitude="1" exponent="10" offset="0.5"/>
+                <feFuncG type="gamma" amplitude="0" exponent="1" offset="0"/>
+                <feFuncB type="gamma" amplitude="0" exponent="1" offset="0.5"/>
+            </feComponentTransfer>
+            <feGaussianBlur in="turbulence" stdDeviation="3" result="softMap"/>
+            <feSpecularLighting in="softMap" surfaceScale="5" specularConstant="1" specularExponent="100" lighting-color="white" result="specLight">
+                <fePointLight x="-200" y="-200" z="300"/>
+            </feSpecularLighting>
+            <feComposite in="specLight" operator="arithmetic" k1="0" k2="1" k3="1" k4="0" result="litImage"/>
+            <feDisplacementMap in="SourceGraphic" in2="softMap" scale="150" xChannelSelector="R" yChannelSelector="G"/>
+        </filter>
+    </svg>
+
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <h1>文档解析服务</h1>
+            <p>MinerU 驱动 · 文档转 Markdown · GitHub 图床</p>
+            <div class="author">Created by ZHONG WEI</div>
+        </header>
+
+        <div class="main-layout">
+            <!-- Left: Main Content -->
+            <div>
+                <!-- Upload Section -->
+                <div class="glass-card upload-section">
+                    <div class="glass-effect"></div>
+                    <div class="glass-tint"></div>
+                    <div class="glass-shine"></div>
+                    <div class="glass-content">
+                        <div class="upload-area" id="uploadArea">
+                            <div class="upload-text">拖拽文件到这里或点击选择</div>
+                            <div class="upload-hint">支持 PDF, Word (.doc/.docx), PPT (.ppt/.pptx)</div>
+                            <input type="file" id="fileInput" class="file-input" accept=".pdf,.doc,.docx,.ppt,.pptx">
+                        </div>
+
+                        <div id="fileInfo" style="display: none;">
+                            <div style="color: white; margin-bottom: 15px; text-align: center;">
+                                已选择: <strong id="fileName"></strong> (<span id="fileSize"></span>)
+                            </div>
+                            <div style="text-align: center;">
+                                <button class="upload-btn" id="startParseBtn" onclick="uploadFile()">
+                                    开始解析
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="progress-section" id="progressSection">
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="progressFill"></div>
+                            </div>
+                            <div class="progress-text" id="progressText">正在解析文档...</div>
+                        </div>
+
+                        <div class="error-msg" id="errorMsg"></div>
+                    </div>
+                </div>
+
+                <!-- Result Section -->
+                <div class="glass-card result-section" id="resultSection" style="margin-top: 30px;">
+                    <div class="glass-effect"></div>
+                    <div class="glass-tint"></div>
+                    <div class="glass-shine"></div>
+                    <div class="glass-content">
+                        <div class="result-header">
+                            <div class="result-title">解析结果</div>
+                            <div class="result-actions">
+                                <button class="action-btn" onclick="copyMarkdown()">复制</button>
+                                <button class="action-btn" onclick="downloadMarkdown()">下载</button>
+                            </div>
+                        </div>
+
+                        <div class="stats">
+                            <div class="stat-card">
+                                <div class="stat-value" id="imageCount">0</div>
+                                <div class="stat-label">图片数量</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value" id="processingTime">0s</div>
+                                <div class="stat-label">处理时间</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value" id="fileNameDisplay">-</div>
+                                <div class="stat-label">文件名</div>
+                            </div>
+                        </div>
+
+                        <div class="tabs">
+                            <button class="tab active" onclick="switchTab('preview')">预览</button>
+                            <button class="tab" onclick="switchTab('source')">源码</button>
+                        </div>
+
+                        <div class="tab-content active" id="previewTab">
+                            <div class="markdown-preview" id="markdownPreview"></div>
+                        </div>
+
+                        <div class="tab-content" id="sourceTab">
+                            <div class="markdown-source" id="markdownSource"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Marked.js for Markdown rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+    <script>
+        // Configure marked
+        marked.setOptions({
+            breaks: true,
+            gfm: true,
+            headerIds: true,
+            mangle: false,
+            sanitize: false
+        });
+
+        let currentMarkdown = '';
+        let currentFilename = '';
+
+        // File upload area
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+
+        uploadArea.addEventListener('click', () => fileInput.click());
+
+        fileInput.addEventListener('change', function(e) {
+            handleFileSelect(e.target.files[0]);
+        });
+
+        // Drag and drop
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('drag-over');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('drag-over');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('drag-over');
+            const file = e.dataTransfer.files[0];
+            handleFileSelect(file);
+        });
+
+        function handleFileSelect(file) {
+            if (!file) return;
+
+            document.getElementById('fileName').textContent = file.name;
+            document.getElementById('fileSize').textContent = (file.size / 1024 / 1024).toFixed(2) + ' MB';
+            document.getElementById('fileInfo').style.display = 'block';
+            fileInput.files = createFileList(file);
+        }
+
+        function createFileList(file) {
+            const dataTransfer = new DataTransfer();
+            dataTransfer.items.add(file);
+            return dataTransfer.files;
+        }
+
+        let progressInterval = null;
+
+        async function uploadFile() {
+            const file = fileInput.files[0];
+            if (!file) {
+                showError('请先选择文件');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            document.getElementById('startParseBtn').disabled = true;
+            document.getElementById('progressSection').classList.add('active');
+            document.getElementById('errorMsg').classList.remove('active');
+
+            // 启动进度条动画
+            startProgressAnimation();
+
+            try {
+                const response = await fetch('/api/document/parse', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.code === 200) {
+                    // 完成进度到 100%
+                    setProgress(100);
+                    setTimeout(() => {
+                        showResult(result.data);
+                    }, 500);
+                } else {
+                    showError(result.message || '解析失败');
+                }
+            } catch (error) {
+                showError('网络错误: ' + error.message);
+            } finally {
+                stopProgressAnimation();
+                document.getElementById('startParseBtn').disabled = false;
+                setTimeout(() => {
+                    document.getElementById('progressSection').classList.remove('active');
+                }, 1000);
+            }
+        }
+
+        function startProgressAnimation() {
+            let progress = 0;
+            const progressFill = document.getElementById('progressFill');
+            const progressText = document.getElementById('progressText');
+
+            // 清除之前的定时器
+            if (progressInterval) {
+                clearInterval(progressInterval);
+            }
+
+            setProgress(0);
+
+            // 模拟进度增长
+            progressInterval = setInterval(() => {
+                if (progress < 90) {
+                    // 前 90% 慢速增长
+                    progress += Math.random() * 2;
+                    setProgress(progress);
+
+                    // 随机更新提示文本
+                    const messages = [
+                        '正在上传文档...',
+                        '正在解析文档...',
+                        '正在提取内容...',
+                        '正在处理图片...',
+                        '正在转换格式...'
+                    ];
+                    const randomMsg = messages[Math.floor(Math.random() * messages.length)];
+                    progressText.textContent = randomMsg;
+                }
+            }, 800);
+        }
+
+        function stopProgressAnimation() {
+            if (progressInterval) {
+                clearInterval(progressInterval);
+                progressInterval = null;
+            }
+        }
+
+        function setProgress(percent) {
+            const progressFill = document.getElementById('progressFill');
+            progressFill.style.width = percent + '%';
+        }
+
+        function showResult(data) {
+            currentMarkdown = data.markdownContent;
+            currentFilename = data.originalFilename;
+
+            // Update stats
+            document.getElementById('imageCount').textContent = data.imageCount;
+            document.getElementById('processingTime').textContent = (data.processingTime / 1000).toFixed(1) + 's';
+            document.getElementById('fileNameDisplay').textContent = data.originalFilename.substring(0, 20) + (data.originalFilename.length > 20 ? '...' : '');
+
+            // Render markdown
+            document.getElementById('markdownPreview').innerHTML = marked.parse(data.markdownContent);
+            document.getElementById('markdownSource').textContent = data.markdownContent;
+
+            // Show result section
+            document.getElementById('resultSection').classList.add('active');
+
+            // Reset upload area
+            document.getElementById('fileInfo').style.display = 'none';
+            fileInput.value = '';
+        }
+
+        function showError(message) {
+            const errorMsg = document.getElementById('errorMsg');
+            errorMsg.textContent = '❌ ' + message;
+            errorMsg.classList.add('active');
+        }
+
+        function switchTab(tab) {
+            // Remove active from all tabs
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+            // Add active to selected tab
+            event.target.classList.add('active');
+
+            if (tab === 'preview') {
+                document.getElementById('previewTab').classList.add('active');
+            } else {
+                document.getElementById('sourceTab').classList.add('active');
+            }
+        }
+
+        function copyMarkdown() {
+            navigator.clipboard.writeText(currentMarkdown).then(() => {
+                alert('✅ Markdown 已复制到剪贴板');
+            });
+        }
+
+        function downloadMarkdown() {
+            const blob = new Blob([currentMarkdown], { type: 'text/markdown' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = currentFilename.replace(/\.[^/.]+$/, '') + '.md';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+</html>
